@@ -962,7 +962,7 @@ func extraOptions(run: TestRun): string =
 
 proc testSpecHelper(r: var TResults, run: var TestRun) =
   run.startTime = epochTime()
-  run.test.startTime = run.startTime # xxx: set the same for legacy reasons
+  run.test.startTime = run.startTime # xxx: set the same for legacy reasons; XXX(quantimnot): what reasons?
   run.cmd = prepareTestCmd(run.expected.getCmd, run.test.name,
                            run.test.options, run.nimcache, run.target,
                            run.extraOptions)
@@ -983,14 +983,17 @@ proc testSpecHelper(r: var TResults, run: var TestRun) =
     if res.success == reSuccess:
       let
         isJsTarget = run.target == targetJS
-        ext =
+        ext = # XXX: move this close to `specs.ext`
           case run.target
           of targetJS: "js"
           of targetVM: "nimbc"
+          of targetScript: "nims"
           else: ExeExt
 
+      # XXX: no need to change a nimscript extension
       var exeFile = changeFileExt(run.test.name, ext)
       
+      # XXX: the nimscript's existence check is not needed
       if not fileExists(exeFile):
         res = makeResult(run.expected.output,
                          "executable not found: " & exeFile, reExeNotFound)
@@ -1004,15 +1007,18 @@ proc testSpecHelper(r: var TResults, run: var TestRun) =
           var exeCmd: string
           var args = run.test.testArgs
           
-          if isJsTarget:
+          case run.target:
+          of targetJS:
             exeCmd = nodejs
             # see D20210217T215950
             args = @["--unhandled-rejections=strict", exeFile] & args
-          elif run.target == targetVM:
+          of targetVM:
             let nimDir = compilerPrefix.getFileDir()
             exeCmd = changeFileExt(nimDir / "vmrunner", ExeExt)
             args = @[exeFile]
-          else:
+          of targetScript:
+            doAssert false, "cannot use host OS exec for nimscripts"
+          of targetC:
             exeCmd = exeFile.dup(normalizeExe)
             if run.expected.useValgrind != disabled:
               var valgrindOptions = @["--error-exitcode=1"]
@@ -1228,7 +1234,7 @@ proc initTest(test, options: string; cat: Category, spec: TSpec): TTest =
   result.name = test
   result.options = options
   result.spec = spec
-  result.startTime = epochTime()
+  result.startTime = epochTime() # XXX: this initial value is not used, because it is overwritten in `testSpecHelper`
   result.inCurrentBatch = isCurrentBatch(testamentData0, result.spec.file) or
                           result.spec.unbatchable
 
@@ -1237,7 +1243,7 @@ proc makeTest(test, options: string, cat: Category): TTest =
   ## spec within that file.
   initTest(test, options, cat,
            parseSpec(
-             addFileExt(test, ".nim"),
+             test, #addFileExt(test, ".nim"),
              cat.defaultTargets,
              nativeTarget()))
 

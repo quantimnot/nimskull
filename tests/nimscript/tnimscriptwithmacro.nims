@@ -1,5 +1,7 @@
-# run by tnimscriptwithmacro_runner.nim until testament support script testing
-
+discard """
+  target: "e"
+  output: "foobar\nnothing\nhallo"
+"""
 # this test ensures that the mode is reset correctly to repr
 
 import std/macros

@@ -59,6 +59,7 @@ type
     targetC = "c"
     targetJS = "js"
     targetVM = "vm"
+    targetScript = "e"
 
   SpecifiedTarget* = enum
     addTargetC = "c"
@@ -67,6 +68,8 @@ type
     remTargetJS = "!js"
     addTargetVM = "vm"
     remTargetVM = "!vm"
+    addTargetScript = "e"
+    remTargetScript = "!e"
     addTargetNative = "native"
     addCategoryTargets = "default"
     remCategoryTargets = "!default"
@@ -84,6 +87,7 @@ type
     description*: string        ## document the purpose of the test
     action*: TTestAction
     file*: string ## File that test spec has been parsed from
+    filePathComponents*: typeof(splitFile(file)) ## File path components of test spec file
     cmd*: string ## Command to execute for the test
     input*: string ## `stdin` input that will be piped into program after
                    ## it has been compiled.
@@ -124,6 +128,16 @@ type
     knownIssues*: array[TTarget, seq[string]] ## known issues to be fixed
     labels*: seq[string] ## user-added metadata
 
+const targetTraits* = [
+  (needsCompiled: true, compileCmd: "c", srcExt: ".nim", exeExt: ExeExt),
+  (needsCompiled: true, compileCmd: "js", srcExt: ".js", exeExt: "js"),
+  (needsCompiled: true, compileCmd: "vm", srcExt: ".nim", exeExt: "nimbc"),
+  (needsCompiled: false, compileCmd: "", srcExt: ".nims", exeExt: "nims"),
+]
+
+func traits*(target: static TTarget): tuple[needsCompiled: bool, compileCmd: string, srcExt: string, exeExt: string] =
+  targetTraits[target.ord]
+
 proc getCmd*(s: TSpec): string =
   ## Get runner command for a given test specification
   if s.cmd.len == 0:
@@ -137,6 +151,7 @@ func ext*(t: TTarget): string {.inline.} =
     of targetC:    "nim.c"
     of targetJS:   "js"
     of targetVM:   ""
+    of targetScript: "nims"
 
 func cmd*(t: TTarget): string {.inline.} =
   ## read-only field providing the command string for the given target
@@ -144,6 +159,7 @@ func cmd*(t: TTarget): string {.inline.} =
     of targetC:    "c"
     of targetJS:   "js"
     of targetVM:   "vm"
+    of targetScript: "e"
 
 func defaultOptions*(a: TTarget): string {.inline.} =
   case a
@@ -270,6 +286,7 @@ proc parseTargets*(value: string): set[TTarget] =
       of "c":          targetC
       of "js":         targetJS
       of "vm":         targetVM
+      of "e":          targetScript
       else: raise newException(ValueError, "invalid target: '$#'" % v)
 
 proc parseSpecifiedTargets*(value: string): set[SpecifiedTarget] =
@@ -280,11 +297,13 @@ proc parseSpecifiedTargets*(value: string): set[SpecifiedTarget] =
       of "c":            addTargetC
       of "js":           addTargetJS
       of "vm":           addTargetVM
+      of "e":            addTargetScript
       of "native":       addTargetNative
       of "default":      addCategoryTargets
       of "!c":           remTargetC
       of "!js":          remTargetJS
       of "!vm":          remTargetVM
+      of "!e":           remTargetScript
       of "!default":     remCategoryTargets
       else: raise newException(ValueError,
                                "invalid target specificatoin: '$#'" % v)
@@ -469,9 +488,10 @@ proc parseSpec*(filename: string,
           of addTargetC: result.targets.incl targetC
           of addTargetJS: result.targets.incl targetJS
           of addTargetVM: result.targets.incl targetVM
+          of addTargetScript: result.targets.incl targetScript
           of addTargetNative: result.targets.incl nativeTarget
           of addCategoryTargets: result.targets = result.targets + catTargets
-          of remTargetC, remTargetJS, remTargetVM,
+          of remTargetC, remTargetJS, remTargetVM, remTargetScript,
              remCategoryTargets:
                discard
         
@@ -485,8 +505,9 @@ proc parseSpec*(filename: string,
           of remTargetC: result.targets.excl targetC
           of remTargetJS: result.targets.excl targetJS
           of remTargetVM: result.targets.excl targetVM
+          of remTargetScript: result.targets.excl targetScript
           of remCategoryTargets: result.targets = result.targets - catTargets
-          of addTargetC, addTargetJS, addTargetVM,
+          of addTargetC, addTargetJS, addTargetVM, addTargetScript,
              addTargetNative, addCategoryTargets:
                discard
         

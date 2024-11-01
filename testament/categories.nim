@@ -15,6 +15,10 @@
 import std/strformat
 import std/private/gitutils
 
+const useRegex {.booldefine.} = false
+when useRegex:
+  import std/re
+
 const
   specialCategories = [
     "assert",
@@ -36,7 +40,7 @@ const
 
 proc isTestFile*(file: string): bool =
   let (_, name, ext) = splitFile(file)
-  result = ext == ".nim" and name.startsWith("t")
+  name.startsWith('t') and ext in [".nim", ".nims"]
 
 # --------------------- DLL generation tests ----------------------------------
 
@@ -404,7 +408,7 @@ proc runJoinedTest(r: var TResults, targets: set[TTarget], testsDir, options: st
       # Flush all buffers
       backend.close()
 
-  var megatests: array[TTarget, string] = ["", "", ""] # c, js, vm
+  var megatests: array[TTarget, string] = ["", "", "", ""] # c, js, vm, e
 
   let
     batch = testamentData0.testamentBatch
@@ -434,13 +438,17 @@ proc runJoinedTest(r: var TResults, targets: set[TTarget], testsDir, options: st
     if targetVM in targetsToRun:
       megatests[targetVM].add testStr
 
+    if targetScript in targetsToRun:
+      megatests[targetScript].add testStr
+
   const mtCacheDir = "megatest_$1_$2"
   let
     root = getCurrentDir()
     cacheDirs: array[TTarget, string] = [
       nimcacheDir(testsDir / mtCacheDir % [$batch, $targetC], "", targetC),
       nimcacheDir(testsDir / mtCacheDir % [$batch, $targetJS], "", targetJS),
-      nimcacheDir(testsDir / mtCacheDir % [$batch, $targetVM], "", targetVM)
+      nimcacheDir(testsDir / mtCacheDir % [$batch, $targetVM], "", targetVM),
+      nimcacheDir(testsDir / mtCacheDir % [$batch, $targetScript], "", targetScript)
     ]
 
   for target, megatest in megatests.pairs:
@@ -485,6 +493,9 @@ proc runJoinedTest(r: var TResults, targets: set[TTarget], testsDir, options: st
       let
         vm = changeFileExt(compilerPrefix.getFileDir() / "vmrunner", ExeExt)
         execCmd = "$1 $2" % [vm, megatestFile.changeFileExt("nimbc").dup]
+      (buf, exitCode) = execCmdEx(execCmd)
+    of targetScript:
+      let execCmd = "$1 $2 $3" % [getCurrentCompilerExe(), "e", megatestFile.changeFileExt("nims").dup]
       (buf, exitCode) = execCmdEx(execCmd)
 
     if exitCode != 0:
