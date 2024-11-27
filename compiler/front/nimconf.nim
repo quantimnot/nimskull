@@ -570,8 +570,8 @@ proc readConfigFile(N: var NimConfParser, filename: AbsoluteFile): bool =
         else:
           parseAssignment(N, tok)
 
-      if N.condStack.len > 0:
-        handleError(N, cekParseExpectedX, "@end")
+      # if N.condStack.len > 0:
+      #   handleError(N, cekParseExpectedX, "@end")
 
       result = true
     except CancelConfigProcessing:
